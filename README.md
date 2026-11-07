@@ -2,7 +2,7 @@
 
 **Drop a Jira export, get a sprint health check and a paste-ready status update. Thirty seconds, no login, nothing leaves your browser.**
 
-**Try it: [hamnajalil.github.io/sprint-health](https://hamnajalil.github.io/sprint-health/)** (click *Try it with sample data* if you don't have an export handy).
+**Try it: [hamnajalil.com/sprint-health](https://hamnajalil.com/sprint-health/)** (click *Try it with sample data* if you don't have an export handy).
 
 ## Why
 
