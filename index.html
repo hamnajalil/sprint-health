@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sprint Health — from a Jira export, in your browser</title>
+<meta name="description" content="Drop in a Jira CSV export and get an honest sprint health check and a status update you can paste. Your data never leaves your browser.">
+<style>
+:root{--bg:#f7f7fb;--panel:#fff;--line:#e3e3ee;--text:#1b1b2b;--dim:#62627a;--accent:#6d4aff;--green:#15803d;--greenbg:#e8f6ec;--amber:#a16207;--amberbg:#fdf3d7;--red:#b91c1c;--redbg:#fde8e8}
+@media(prefers-color-scheme:dark){:root{--bg:#0f0e17;--panel:#18172b;--line:#2c2a45;--text:#ecebf7;--dim:#9c9ab8;--accent:#a78bfa;--green:#4ade80;--greenbg:#12301e;--amber:#fbbf24;--amberbg:#33290c;--red:#f87171;--redbg:#3a1414}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 "Segoe UI",system-ui,-apple-system,Helvetica,Arial,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:34px;margin:0 0 6px;letter-spacing:-.5px}
+h2{font-size:20px;margin:0 0 12px}
+.sub{color:var(--dim);margin:0 0 20px;font-size:18px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:20px;margin-bottom:16px}
+.drop{border:2px dashed var(--line);border-radius:14px;padding:34px 20px;text-align:center;transition:border-color .15s,background .15s;cursor:pointer}
+.drop.over{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+.drop b{font-size:18px}
+button{font:inherit;cursor:pointer;border-radius:10px;padding:9px 16px;border:1px solid var(--line);background:var(--panel);color:var(--text)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.private{display:flex;gap:10px;align-items:flex-start;color:var(--dim);font-size:14px;margin-top:14px}
+details{color:var(--dim);font-size:14px;margin-top:12px}summary{cursor:pointer}
+.controls{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
+.controls label{display:grid;gap:4px;font-size:13px;color:var(--dim)}
+select,input{font:inherit;padding:8px 10px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--text)}
+.verdict{display:flex;gap:16px;align-items:center;border-radius:14px;padding:18px 20px;margin-bottom:16px;border:1px solid}
+.verdict .dot{font-size:34px;line-height:1}
+.verdict b{font-size:22px;display:block}
+.v-green{background:var(--greenbg);border-color:var(--green)}.v-amber{background:var(--amberbg);border-color:var(--amber)}.v-red{background:var(--redbg);border-color:var(--red)}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.tile .n{font-size:30px;font-weight:700;line-height:1.1}
+.tile .l{color:var(--dim);font-size:14px}
+.tile .s{font-size:13px;color:var(--dim);margin-top:2px}
+.bar{height:10px;background:var(--line);border-radius:99px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--accent)}
+.flags{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.flags li{display:flex;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid var(--line)}
+.flags .red{background:var(--redbg);border-color:var(--red)}.flags .amber{background:var(--amberbg);border-color:var(--amber)}.flags .green{background:var(--greenbg);border-color:var(--green)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--dim);font-weight:600;font-size:13px}
+.scroll{overflow-x:auto}
+.key{font-family:Consolas,Menlo,monospace;white-space:nowrap}
+.pill{display:inline-block;border-radius:99px;padding:1px 9px;font-size:12px;border:1px solid var(--line);white-space:nowrap}
+.person{display:grid;grid-template-columns:150px 1fr 110px;gap:10px;align-items:center;font-size:14px;padding:5px 0}
+.stack{display:flex;height:12px;border-radius:99px;overflow:hidden;background:var(--line)}
+.stack .d{background:var(--green)}.stack .o{background:var(--accent)}
+textarea{width:100%;min-height:220px;font:14px/1.5 Consolas,Menlo,monospace;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--text);resize:vertical}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.muted{color:var(--dim);font-size:14px}
+.err{background:var(--redbg);border:1px solid var(--red);border-radius:10px;padding:12px;margin-top:12px}
+footer{color:var(--dim);font-size:13px;text-align:center;margin-top:30px}
+a{color:var(--accent)}
+[hidden]{display:none!important}
+@media(max-width:640px){.tiles{grid-template-columns:repeat(2,1fr)}h1{font-size:27px}.person{grid-template-columns:100px 1fr 80px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Sprint Health</h1>
+  <p class="sub">Drop in a Jira export. Get an honest health check and a status update you can paste.</p>
+
+  <div class="panel" id="intake">
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="Choose a Jira CSV export">
+      <b>Drop your Jira CSV here</b><br><span class="muted">or click to choose a file</span>
+      <input type="file" id="file" accept=".csv,text/csv" hidden>
+    </div>
+    <div class="row"><button id="sample">Try it with sample data</button><span class="muted">No Jira export to hand? See how it works first.</span></div>
+    <div class="private"><span>🔒</span><span><b>Your data stays on your computer.</b> This page has no server and sends nothing anywhere. The file is read by your browser and forgotten when you close the tab.</span></div>
+    <details><summary>How do I get the file from Jira?</summary>
+      <p>In Jira, open the issue search (Filters → Search work items, or "View all issues"). Filter to your sprint, for example <code>sprint in openSprints()</code>. Then use <b>Export → Export CSV (all fields)</b>. Menu names vary a little between Jira versions.</p>
+      <p>The page reads these columns when they're there: Issue key, Summary, Issue Type, Status, Status Category, Assignee, Created, Updated, Resolved, Sprint, Story Points and Flagged.</p></details>
+    <div class="err" id="err" hidden></div>
+  </div>
+
+  <div id="out" hidden>
+    <div class="panel">
+      <div class="controls">
+        <label>Sprint<select id="sprint"></select></label>
+        <label>Sprint start date <input type="date" id="start"></label>
+        <label>Length (days)<input type="number" id="len" value="14" min="1" max="60" style="width:90px"></label>
+        <button id="reset">Load another file</button>
+      </div>
+      <p class="muted" id="hint" style="margin:10px 0 0"></p>
+    </div>
+    <div id="verdict"></div>
+    <div class="tiles" id="tiles"></div>
+    <div class="panel"><h2>What to look at</h2><ul class="flags" id="flags"></ul></div>
+    <div class="panel" id="carryPanel"><h2>Carried in from earlier sprints</h2><div class="scroll" id="carry"></div></div>
+    <div class="panel"><h2>Who's carrying what</h2><div id="people"></div><p class="muted" style="margin:8px 0 0">Green is done, purple is still open.</p></div>
+    <div class="panel"><h2>Status update, ready to paste</h2><textarea id="update" spellcheck="false"></textarea>
+      <div class="row"><button class="primary" id="copy">Copy</button><span class="muted">Edit it first if you like. It's plain text.</span></div></div>
+  </div>
+  <footer>Made by <a href="https://hamnajalil.com">Hamna Jalil</a>. Free and open source.</footer>
+</div>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
+const DAY = 86400000;
+let ISSUES = [], HAS_POINTS = false, EXPORT_DATE = null;
+
+// ---------- CSV ----------
+function parseCSV(text) {
+  if (text.charCodeAt(0) === 0xFEFF) text = text.slice(1);
+  const first = text.split('\n')[0];
+  const sep = (first.split(';').length > first.split(',').length) ? ';' : ',';
+  const rows = []; let row = [], cell = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i+1] === '"') { cell += '"'; i++; } else q = false; }
+      else cell += c;
+    } else if (c === '"') q = true;
+    else if (c === sep) { row.push(cell); cell = ''; }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && text[i+1] === '\n') i++;
+      row.push(cell); cell = '';
+      if (row.some(v => v !== '')) rows.push(row);
+      row = [];
+    } else cell += c;
+  }
+  row.push(cell); if (row.some(v => v !== '')) rows.push(row);
+  return rows;
+}
+
+const MONTHS = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function parseDate(s) {
+  if (!s) return null;
+  s = s.trim();
+  // Jira's default: 06/Nov/26 3:41 PM
+  let m = s.match(/^(\d{1,2})[\/\- ]([A-Za-z]{3})[a-z]*[\/\- ](\d{2,4})(?:[ ,]+(\d{1,2}):(\d{2})(?::\d{2})?\s*([AaPp][Mm])?)?/);
+  if (m && m[2].toLowerCase() in MONTHS) {
+    let y = +m[3]; if (y < 100) y += 2000;
+    let h = +(m[4] || 0); const ap = (m[6] || '').toLowerCase();
+    if (ap === 'pm' && h < 12) h += 12; if (ap === 'am' && h === 12) h = 0;
+    return new Date(y, MONTHS[m[2].toLowerCase()], +m[1], h, +(m[5] || 0));
+  }
+  const t = Date.parse(s);
+  return isNaN(t) ? null : new Date(t);
+}
+
+function toIssues(rows) {
+  const head = rows[0].map(h => h.trim().toLowerCase());
+  const col = (...names) => { for (const n of names) { const i = head.indexOf(n); if (i >= 0) return i; } return -1; };
+  const cols = re => head.map((h, i) => re.test(h) ? i : -1).filter(i => i >= 0);
+  const c = {
+    key: col('issue key', 'key'), summary: col('summary'), type: col('issue type', 'issuetype', 'type', 'work type'),
+    status: col('status'), cat: col('status category'), assignee: col('assignee'),
+    created: col('created'), updated: col('updated'), resolved: col('resolved'),
+    sprints: cols(/^sprint$/), points: cols(/story point/), flagged: cols(/flagged/),
+  };
+  if (c.key < 0 || c.status < 0) throw new Error('This doesn\'t look like a Jira export. I need at least an "Issue key" column and a "Status" column. The columns I found were: ' + rows[0].slice(0, 8).join(', ') + (rows[0].length > 8 ? '…' : ''));
+  const get = (r, i) => i >= 0 ? (r[i] || '').trim() : '';
+  let hasPoints = false;
+  const issues = rows.slice(1).map(r => {
+    const status = get(r, c.status), cat = get(r, c.cat).toLowerCase(), resolved = parseDate(get(r, c.resolved));
+    let points = null;
+    for (const i of c.points) { const v = parseFloat(r[i]); if (!isNaN(v)) { points = v; break; } }
+    if (points !== null) hasPoints = true;
+    const done = cat ? cat === 'done' : (!!resolved || /^(done|closed|resolved|complete|completed|released|shipped|won't do|wont do)$/i.test(status));
+    const started = !done && (cat ? cat === 'in progress' : /progress|review|test|qa|doing|develop/i.test(status));
+    return {
+      key: get(r, c.key), summary: get(r, c.summary), type: get(r, c.type) || 'Issue', status,
+      assignee: get(r, c.assignee) || 'Unassigned', created: parseDate(get(r, c.created)), updated: parseDate(get(r, c.updated)), resolved,
+      sprints: c.sprints.map(i => get(r, i)).filter(Boolean), points, done, started,
+      blocked: !done && (/block|imped/i.test(status) || c.flagged.some(i => get(r, i) !== '')),
+    };
+  }).filter(x => x.key);
+  return {issues, hasPoints};
+}
+
+// ---------- analysis ----------
+function analyse(sprint, start, len) {
+  const set = sprint === '*' ? ISSUES : ISSUES.filter(i => i.sprints.includes(sprint));
+  const sum = a => HAS_POINTS ? a.reduce((t, i) => t + (i.points || 0), 0) : a.length;
+  const unit = HAS_POINTS ? 'points' : 'issues';
+  const done = set.filter(i => i.done), open = set.filter(i => !i.done);
+  const total = sum(set), donePct = pct(sum(done), total);
+  const carried = sprint === '*' ? [] : set.filter(i => i.sprints.indexOf(sprint) > 0)
+    .map(i => ({...i, hops: i.sprints.indexOf(sprint) + 1})).sort((a, b) => b.hops - a.hops);
+  const zombies = carried.filter(i => i.hops >= 3 && !i.done);
+  const added = start ? set.filter(i => i.created && i.created > start) : null;
+  const blocked = open.filter(i => i.blocked);
+  const unest = HAS_POINTS ? set.filter(i => i.points === null) : [];
+  const now = EXPORT_DATE || new Date();
+  const stale = open.filter(i => i.started && i.updated && (now - i.updated) > 5 * DAY);
+  const people = {};
+  for (const i of set) { const p = people[i.assignee] ||= {name: i.assignee, done: 0, open: 0, openN: 0}; if (i.done) p.done += HAS_POINTS ? (i.points || 0) : 1; else { p.open += HAS_POINTS ? (i.points || 0) : 1; p.openN++; } }
+  const plist = Object.values(people).sort((a, b) => (b.open + b.done) - (a.open + a.done));
+  const openTotal = sum(open);
+  const elapsed = start ? Math.min(1, Math.max(0, (now - start) / (len * DAY))) : null;
+
+  const flags = [];
+  const f = (sev, text) => flags.push({sev, text});
+  if (elapsed !== null) {
+    const gap = Math.round(elapsed * 100) - donePct;
+    const where = elapsed >= 1 ? 'The sprint is over' : `The sprint is ${Math.round(elapsed * 100)}% through`;
+    if (gap > 30) f('red', `${where} and ${donePct}% of the ${unit} are done. Well behind an even pace.`);
+    else if (gap > 15) f('amber', `${where} and ${donePct}% of the ${unit} are done. Slightly behind an even pace.`);
+    else f('green', `${where} and ${donePct}% of the ${unit} are done. On pace.`);
+  }
+  const cp = pct(carried.length, set.length);
+  if (cp >= 40) f('red', `${carried.length} of ${set.length} issues (${cp}%) were carried in from earlier sprints. The team is planning more than it finishes.`);
+  else if (cp >= 20) f('amber', `${carried.length} of ${set.length} issues (${cp}%) were carried in from earlier sprints.`);
+  if (zombies.length) f('amber', `${zombies.length} open issue${zombies.length > 1 ? 's have' : ' has'} been in three or more sprints: ${zombies.slice(0, 4).map(i => i.key).join(', ')}. Split, re-scope or drop.`);
+  if (added) {
+    const ap = pct(added.length, set.length);
+    if (ap >= 25) f('red', `${added.length} issues (${ap}%) were created after the sprint started. That's heavy scope creep.`);
+    else if (ap >= 10) f('amber', `${added.length} issues (${ap}%) were created after the sprint started.`);
+  }
+  if (blocked.length >= 3) f('red', `${blocked.length} issues are blocked: ${blocked.slice(0, 4).map(i => i.key).join(', ')}.`);
+  else if (blocked.length) f('amber', `${blocked.length} issue${blocked.length > 1 ? 's are' : ' is'} blocked: ${blocked.map(i => i.key).join(', ')}.`);
+  if (unest.length && pct(unest.length, set.length) >= 30) f('amber', `${unest.length} of ${set.length} issues have no estimate, so the points picture is incomplete.`);
+  if (stale.length) f('amber', `${stale.length} in-progress issue${stale.length > 1 ? 's have' : ' has'} not been updated in over 5 days: ${stale.slice(0, 4).map(i => i.key).join(', ')}.`);
+  const top = plist.filter(p => p.name !== 'Unassigned').sort((a, b) => b.open - a.open)[0];
+  if (top && plist.length >= 3 && openTotal && top.open / openTotal > 0.4) f('amber', `${top.name} holds ${pct(top.open, openTotal)}% of the open work. That's a single point of failure.`);
+  const un = open.filter(i => i.assignee === 'Unassigned');
+  if (un.length) f('amber', `${un.length} open issue${un.length > 1 ? 's have' : ' has'} no owner.`);
+  const reds = flags.filter(x => x.sev === 'red').length, ambers = flags.filter(x => x.sev === 'amber').length;
+  const verdict = reds || ambers >= 3 ? 'red' : ambers ? 'amber' : 'green';
+  if (!flags.some(x => x.sev !== 'green')) f('green', 'Nothing stands out. No carryover, blockers or stale work found.');
+  return {sprint, set, done, open, total, donePct, unit, carried, added, blocked, unest, stale, plist, flags, verdict, elapsed,
+          doneSum: sum(done), started: open.filter(i => i.started), notStarted: open.filter(i => !i.started)};
+}
+
+// ---------- render ----------
+const VERDICT = {green: ['🟢', 'On track', 'v-green'], amber: ['🟡', 'At risk', 'v-amber'], red: ['🔴', 'Off track', 'v-red']};
+function render() {
+  const sprint = $('sprint').value, start = $('start').value ? new Date($('start').value + 'T00:00') : null, len = +$('len').value || 14;
+  const m = analyse(sprint, start, len);
+  const name = sprint === '*' ? 'All issues in the file' : sprint;
+  const [dot, word, cls] = VERDICT[m.verdict];
+  $('hint').textContent = start ? '' : 'Add the sprint start date to check pace and spot work added mid-sprint.';
+  $('verdict').innerHTML = `<div class="verdict ${cls}"><span class="dot">${dot}</span><div><b>${esc(name)}: ${word}</b><span>${m.set.length} issues, ${m.doneSum} of ${m.total} ${m.unit} done</span></div></div>`;
+  const tile = (n, l, s = '', bar = null) => `<div class="tile"><div class="n">${n}</div><div class="l">${l}</div>${s ? `<div class="s">${s}</div>` : ''}${bar !== null ? `<div class="bar"><i style="width:${bar}%"></i></div>` : ''}</div>`;
+  $('tiles').innerHTML =
+    tile(m.donePct + '%', 'Done', `${m.done.length} of ${m.set.length} issues`, m.donePct) +
+    tile(m.started.length, 'In progress', `${m.notStarted.length} not started`) +
+    tile(m.carried.length, 'Carried in', `${pct(m.carried.length, m.set.length)}% of the sprint`) +
+    tile(m.added ? m.added.length : '–', 'Added mid-sprint', m.added ? 'created after the start date' : 'needs a start date') +
+    tile(m.blocked.length, 'Blocked') +
+    tile(m.stale.length, 'Gone quiet', 'in progress, no update in 5+ days');
+  const icon = {red: '🔴', amber: '🟡', green: '🟢'};
+  $('flags').innerHTML = m.flags.sort((a, b) => 'rag'.indexOf(a.sev[0]) - 'rag'.indexOf(b.sev[0])).map(x => `<li class="${x.sev}"><span>${icon[x.sev]}</span><span>${esc(x.text)}</span></li>`).join('');
+  $('carryPanel').hidden = !m.carried.length;
+  $('carry').innerHTML = `<table><tr><th>Issue</th><th>Summary</th><th>Sprints</th><th>Status</th><th>Owner</th></tr>${m.carried.map(i =>
+    `<tr><td class="key">${esc(i.key)}</td><td>${esc(i.summary)}</td><td>${i.hops}</td><td><span class="pill">${esc(i.status)}</span></td><td>${esc(i.assignee)}</td></tr>`).join('')}</table>`;
+  const max = Math.max(1, ...m.plist.map(p => p.done + p.open));
+  $('people').innerHTML = m.plist.map(p => `<div class="person"><span>${esc(p.name)}</span><div class="stack" style="width:${Math.max(4, (p.done + p.open) / max * 100)}%"><i class="d" style="width:${pct(p.done, p.done + p.open)}%"></i><i class="o" style="width:${pct(p.open, p.done + p.open)}%"></i></div><span class="muted">${p.done} done, ${p.open} open</span></div>`).join('');
+
+  const lines = [`${name}: ${dot} ${word}`, '',
+    `Done: ${m.done.length} of ${m.set.length} issues` + (HAS_POINTS ? ` (${m.doneSum} of ${m.total} points, ${m.donePct}%)` : ` (${m.donePct}%)`),
+    `In progress: ${m.started.length} · Not started: ${m.notStarted.length}`];
+  if (m.carried.length) lines.push(`Carried in from earlier sprints: ${m.carried.length} (${pct(m.carried.length, m.set.length)}%)`);
+  if (m.added && m.added.length) lines.push(`Added after the sprint started: ${m.added.length}`);
+  if (m.blocked.length) lines.push(`Blocked: ${m.blocked.map(i => `${i.key} ${i.summary}`).join('; ')}`);
+  const watch = m.flags.filter(x => x.sev !== 'green');
+  if (watch.length) lines.push('', 'Watch:', ...watch.map(x => `- ${x.text}`));
+  lines.push('', 'Decision needed: ');
+  $('update').value = lines.join('\n');
+}
+
+function load(text, sampleStart) {
+  $('err').hidden = true;
+  try {
+    const rows = parseCSV(text);
+    if (rows.length < 2) throw new Error('That file is empty, or it isn\'t a CSV.');
+    const r = toIssues(rows);
+    if (!r.issues.length) throw new Error('I found the columns but no issues in the file.');
+    ISSUES = r.issues; HAS_POINTS = r.hasPoints;
+    const ups = ISSUES.map(i => i.updated).filter(Boolean);
+    EXPORT_DATE = ups.length ? new Date(Math.max(...ups)) : new Date();
+    const names = [...new Set(ISSUES.flatMap(i => i.sprints))].sort((a, b) => a.localeCompare(b, undefined, {numeric: true}));
+    $('sprint').innerHTML = names.map(n => `<option>${esc(n)}</option>`).join('') + '<option value="*">All issues in the file</option>';
+    $('sprint').value = names.length ? names[names.length - 1] : '*';
+    $('start').value = sampleStart || '';
+    $('intake').hidden = true; $('out').hidden = false;
+    render();
+  } catch (e) { $('err').textContent = e.message; $('err').hidden = false; }
+}
+
+// ---------- sample ----------
+function sampleCSV() {
+  const start = new Date(2026, 9, 26, 9, 0);
+  const M = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const d = off => { if (off === null) return ''; const t = new Date(start.getTime() + off * DAY); return `${String(t.getDate()).padStart(2,'0')}/${M[t.getMonth()]}/${String(t.getFullYear()).slice(2)} 9:30 AM`; };
+  const S = n => ['Sprint 12', 'Sprint 13', 'Sprint 14'].slice(3 - n);
+  // summary, type, status, category, owner, created, updated, resolved, sprints in, points, flagged
+  const rows = [
+    ['Tutorial: first combat encounter', 'Story', 'Done', 'Done', 'Amira Khan', -20, 3, 3, 1, 5, ''],
+    ['Inventory screen, drag and drop', 'Story', 'Done', 'Done', 'Leo Park', -18, 5, 5, 1, 8, ''],
+    ['Save game corrupts on quit during autosave', 'Bug', 'Done', 'Done', 'Leo Park', -9, 2, 2, 1, 3, ''],
+    ['Boss arena lighting pass', 'Task', 'Done', 'Done', 'Sofia Rossi', -15, 6, 6, 1, 5, ''],
+    ['Controller remapping menu', 'Story', 'Done', 'Done', 'Amira Khan', -30, 4, 4, 2, 5, ''],
+    ['Shop: "buy back" tab, sell and undo', 'Story', 'Done', 'Done', 'Dev Patel', -12, 7, 7, 1, 3, ''],
+    ['Crash when alt-tabbing in fullscreen', 'Bug', 'Done', 'Done', 'Dev Patel', 2, 8, 8, 1, 2, ''],
+    ['Quest log UI', 'Story', 'In Review', 'In Progress', 'Amira Khan', -14, 9, null, 1, 8, ''],
+    ['Enemy pathfinding on slopes', 'Story', 'In Progress', 'In Progress', 'Leo Park', -40, 2, null, 3, 8, ''],
+    ['Co-op session invites', 'Story', 'In Progress', 'In Progress', 'Leo Park', -35, 9, null, 2, 13, ''],
+    ['Localisation: export strings for French, German', 'Task', 'In Progress', 'In Progress', 'Leo Park', -10, 3, null, 1, 5, ''],
+    ['Platform achievements hookup', 'Story', 'Blocked', 'In Progress', 'Dev Patel', -22, 8, null, 2, 5, 'Impediment'],
+    ['Cutscene skip button', 'Story', 'In Progress', 'In Progress', 'Sofia Rossi', -8, 9, null, 1, 3, ''],
+    ['Audio: footsteps per surface', 'Task', 'To Do', 'To Do', 'Sofia Rossi', -11, -1, null, 1, 3, ''],
+    ['Publisher demo build for Friday', 'Task', 'To Do', 'To Do', '', 6, 6, null, 1, null, ''],
+    ['Demo: hide unfinished skill tree', 'Task', 'In Progress', 'In Progress', 'Amira Khan', 6, 9, null, 1, 2, ''],
+    ['Demo: add "thanks for playing" screen', 'Task', 'To Do', 'To Do', 'Dev Patel', 7, 7, null, 1, null, ''],
+    ['Frame drops in the market district', 'Bug', 'To Do', 'To Do', 'Leo Park', 4, 4, null, 1, 5, ''],
+    ['Photo mode', 'Story', 'To Do', 'To Do', 'Sofia Rossi', -45, -2, null, 3, 8, ''],
+    ['Minimap fog of war', 'Story', 'Done', 'Done', 'Sofia Rossi', -16, 8, 8, 1, 5, ''],
+  ];
+  const q = v => `"${String(v).replace(/"/g, '""')}"`;
+  const head = ['Summary','Issue key','Issue Type','Status','Status Category','Assignee','Created','Updated','Resolved','Sprint','Sprint','Sprint','Custom field (Story Points)','Custom field (Flagged)'];
+  return [head.join(','), ...rows.map((r, i) => { const sp = S(r[8]); return [q(r[0]), 'GAME-' + (101 + i), r[1], r[2], r[3], r[4], d(r[5]), d(r[6]), d(r[7]), sp[0] || '', sp[1] || '', sp[2] || '', r[9] ?? '', r[10]].join(','); })].join('\n');
+}
+
+// ---------- wiring ----------
+const drop = $('drop');
+const readFile = f => { const r = new FileReader(); r.onload = () => load(r.result); r.readAsText(f); };
+drop.onclick = () => $('file').click();
+drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } };
+$('file').onchange = e => { if (e.target.files[0]) readFile(e.target.files[0]); e.target.value = ''; };
+['dragenter', 'dragover'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(n => drop.addEventListener(n, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => { if (e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+$('sample').onclick = () => load(sampleCSV(), '2026-10-26');
+['sprint', 'start', 'len'].forEach(id => $(id).addEventListener('input', render));
+$('reset').onclick = () => { $('out').hidden = true; $('intake').hidden = false; };
+$('copy').onclick = async () => { try { await navigator.clipboard.writeText($('update').value); $('copy').textContent = 'Copied'; } catch (e) { $('update').select(); $('copy').textContent = 'Press Ctrl+C'; } setTimeout(() => $('copy').textContent = 'Copy', 1500); };
+</script>
+</body>
+</html>
